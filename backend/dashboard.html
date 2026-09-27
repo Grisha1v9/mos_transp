@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Прогноз загрузки трамваев — Дашборд</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; display: flex; height: 100vh; overflow: hidden; background: #eef2f5; }
+        #sidebar { width: 360px; padding: 24px; background: #1e2a3a; color: #fff; overflow-y: auto; }
+        #sidebar h1 { font-size: 20px; margin-bottom: 6px; color: #4fc3f7; }
+        #sidebar p.sub { font-size: 12px; color: #9fb3c8; margin-bottom: 20px; }
+        .form-group { margin-bottom: 14px; }
+        label { display: block; font-size: 13px; margin-bottom: 6px; color: #cfd8e3; }
+        input, select { width: 100%; padding: 9px 10px; border-radius: 6px; border: none; background: #2c3e50; color: #fff; font-size: 14px; }
+        input:focus, select:focus { outline: 2px solid #4fc3f7; }
+        button { width: 100%; padding: 11px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; margin-top: 8px; font-size: 14px; transition: 0.2s; }
+        .btn-main { background: #4fc3f7; color: #1e2a3a; }
+        .btn-main:hover { background: #29b6f6; }
+        .btn-export { background: #2c3e50; color: #fff; }
+        .btn-export:hover { background: #37474f; }
+        #status { margin-top: 14px; font-size: 13px; color: #9fb3c8; min-height: 20px; }
+        #main { flex: 1; display: flex; flex-direction: column; }
+        #map { flex: 1; }
+        #chart-wrap { height: 40%; padding: 10px; background: #fff; }
+        .coef-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h1>Прогноз трамваев</h1>
+    <p class="sub">Дашборд диспетчера ЕДЦ</p>
+
+    <div class="form-group">
+        <label>Маршрут</label>
+        <select id="route"></select>
+    </div>
+
+    <div class="form-group">
+        <label>Дата с</label>
+        <input type="date" id="dateFrom" value="2025-11-01">
+    </div>
+
+    <div class="form-group">
+        <label>Дата по</label>
+        <input type="date" id="dateTo" value="2025-11-01">
+    </div>
+
+    <div class="form-group">
+        <label>Часы (с — по)</label>
+        <div class="coef-grid">
+            <input type="number" id="hourFrom" value="0" min="0" max="23">
+            <input type="number" id="hourTo" value="23" min="0" max="23">
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label>Погода (коэф.)</label>
+        <input type="number" id="weatherCoef" value="1.0" step="0.1">
+    </div>
+    <div class="form-group">
+        <label>Событие (коэф.)</label>
+        <input type="number" id="eventCoef" value="1.0" step="0.1">
+    </div>
+    <div class="form-group">
+        <label>Сезон (коэф.)</label>
+        <input type="number" id="seasonCoef" value="1.0" step="0.1">
+    </div>
+
+    <button class="btn-main" onclick="getForecast()">Построить прогноз</button>
+    <button class="btn-export" onclick="exportData('csv')">Экспорт CSV</button>
+    <button class="btn-export" onclick="exportData('xlsx')">Экспорт XLSX</button>
+
+    <div id="status"></div>
+</div>
+
+<div id="main">
+    <div id="map"></div>
+    <div id="chart-wrap">
+        <canvas id="chart"></canvas>
+    </div>
+</div>
+
+<script>
+    const API = window.location.origin;
+
+    const map = L.map('map').setView([55.7558, 37.6173], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    const routeStops = {
+        1:  [[55.7710, 37.6010], [55.7645, 37.6240], [55.7560, 37.6400]],
+        7:  [[55.7850, 37.5950], [55.7710, 37.6120], [55.7580, 37.6300]],
+        11: [[55.7420, 37.5850], [55.7480, 37.6100], [55.7540, 37.6350]],
+        12: [[55.7300, 37.5700], [55.7450, 37.5900], [55.7600, 37.6150]],
+        17: [[55.8100, 37.5800], [55.7900, 37.6000], [55.7700, 37.6200]],
+        25: [[55.7200, 37.6300], [55.7350, 37.6500], [55.7500, 37.6700]],
+        26: [[55.7800, 37.6600], [55.7650, 37.6800], [55.7500, 37.7000]],
+        28: [[55.7000, 37.6000], [55.7150, 37.6200], [55.7300, 37.6400]],
+        50: [[55.7600, 37.5500], [55.7550, 37.5800], [55.7500, 37.6100]]
+    };
+
+    let stopMarkers = [];
+    function drawRouteStops(route) {
+        stopMarkers.forEach(m => map.removeLayer(m));
+        stopMarkers = [];
+        const stops = routeStops[route] || [];
+        stops.forEach((coords, i) => {
+            const m = L.circleMarker(coords, { radius: 8, color: '#4fc3f7', fillColor: '#29b6f6', fillOpacity: 0.8 })
+                .addTo(map)
+                .bindPopup(`Маршрут ${route}<br>Остановка ${i + 1}`);
+            stopMarkers.push(m);
+        });
+        if (stops.length) map.fitBounds(stops);
+    }
+
+    let chartInstance = null;
+    function drawChart(data) {
+        const labels = data.map(d => `${d.date.slice(5)} ${String(d.hour).padStart(2,'0')}:00`);
+        const values = data.map(d => d.prediction);
+
+        if (chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(document.getElementById('chart'), {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Прогноз пассажиропотока, чел.',
+                    data: values,
+                    borderColor: '#29b6f6',
+                    backgroundColor: 'rgba(41, 182, 246, 0.15)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'top' } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+
+    fetch(`${API}/api/routes`)
+        .then(r => r.json())
+        .then(d => {
+            const sel = document.getElementById('route');
+            d.routes.forEach(r => {
+                const o = document.createElement('option');
+                o.value = r; o.textContent = `Маршрут ${r}`;
+                sel.appendChild(o);
+            });
+            drawRouteStops(parseInt(sel.value));
+            sel.addEventListener('change', e => drawRouteStops(parseInt(e.target.value)));
+        });
+
+    function buildRequest() {
+        return {
+            route: parseInt(document.getElementById('route').value),
+            date_from: document.getElementById('dateFrom').value,
+            date_to: document.getElementById('dateTo').value,
+            hour_from: parseInt(document.getElementById('hourFrom').value),
+            hour_to: parseInt(document.getElementById('hourTo').value),
+            weather_coef: parseFloat(document.getElementById('weatherCoef').value),
+            event_coef: parseFloat(document.getElementById('eventCoef').value),
+            season_coef: parseFloat(document.getElementById('seasonCoef').value)
+        };
+    }
+
+    async function getForecast() {
+        const status = document.getElementById('status');
+        status.textContent = '⏳ Загрузка...';
+        try {
+            const res = await fetch(`${API}/api/forecast`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(buildRequest())
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const json = await res.json();
+            drawChart(json.data);
+            status.textContent = `✅ Получено ${json.data.length} точек прогноза`;
+        } catch (e) {
+            status.textContent = `❌ Ошибка: ${e.message}`;
+        }
+    }
+
+    async function exportData(format) {
+        const status = document.getElementById('status');
+        status.textContent = '⏳ Формирование файла...';
+        try {
+            const res = await fetch(`${API}/api/export/${format}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(buildRequest())
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `forecast_route_${buildRequest().route}.${format}`;
+            a.click();
+            URL.revokeObjectURL(url);
+            status.textContent = `✅ Файл .${format} скачан`;
+        } catch (e) {
+            status.textContent = `❌ Ошибка: ${e.message}`;
+        }
+    }
+</script>
+</body>
+</html>

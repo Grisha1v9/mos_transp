@@ -1,0 +1,22 @@
+# Данные (не нужны в образе)
+labels/
+train.csv
+test.csv
+dataset.zip
+data-2527-2026-01-13.csv
+data-2527-2026-01-13.xlsx
+
+# Python-мусор
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Ноутбуки и документация
+*.ipynb
+README.md
+
+# Git
+.git/
+.gitignore

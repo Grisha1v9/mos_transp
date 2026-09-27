@@ -1,0 +1,21 @@
+services:
+  ml:
+    build: ./ml
+    container_name: ml_service
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./ml/artifacts:/app/artifacts
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    container_name: backend
+    ports:
+      - "8080:8080"
+    environment:
+      - ML_SERVICE_URL=http://ml:8000/api/forecast
+    depends_on:
+      ml:
+        condition: service_healthy
+    restart: unless-stopped

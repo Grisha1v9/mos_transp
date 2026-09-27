@@ -277,9 +277,16 @@ pip install fastapi uvicorn lightgbm==3.3.5 numpy==1.26.4 holidays pydantic requ
 uvicorn ml_service:app --host 0.0.0.0 --port 8000 --reload
 ```
 
+<<<<<<< HEAD
 ### Пример запроса:
+=======
+### Пример запроса
+>>>>>>> edd7986 (Restructure: ML to ml/, add backend and docker-compose)
 ```bash
 curl -X POST http://localhost:8000/api/forecast \
   -H "Content-Type: application/json" \
   -d '{"route":1,"date_from":"2025-11-01","date_to":"2025-11-01","hour_from":0,"hour_to":23,"weather_coef":1.0,"event_coef":1.0,"season_coef":1.0}'
+<<<<<<< HEAD
 ```
+=======
+>>>>>>> edd7986 (Restructure: ML to ml/, add backend and docker-compose)
