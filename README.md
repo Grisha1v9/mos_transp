@@ -196,7 +196,76 @@
 | Docker backend | [`backend/Dockerfile`](./backend/Dockerfile) |
 | Общий запуск стека | [`docker-compose.yml`](./docker-compose.yml) |
 
-## Инструкция по локальному развертыванию ML-модуля
+## Запуск полного стека (Docker Compose)
+
+```bash
+docker-compose up --build
+```
+
+**Что поднимется:**
+
+| Сервис | URL | Порт |
+|---|---|---|
+| Дашборд диспетчера | http://localhost:8080/ | 8080 |
+| Backend Swagger | http://localhost:8080/docs | 8080 |
+| ML Swagger | http://localhost:8000/docs | 8000 |
+
+**Порядок старта:**
+1. `ml_service` собирается (~1–2 мин) и загружает `model.pkl` (~200 мс)
+2. Healthcheck ML проходит за ~40 сек
+3. `backend` стартует только после этого (`depends_on: service_healthy`)
+4. Дашборд доступен на `http://localhost:8080/`
+
+**Структура репозитория:**
+```
+mos_transp/
+├── docker-compose.yml
+├── ml/                    # ML-сервис (FastAPI + LightGBM)
+│   ├── ml_service.py
+│   ├── Dockerfile
+│   ├── main_transp.ipynb  # ноутбук обучения
+│   └── artifacts/         # model.pkl
+└── backend/               # API Gateway + дашборд
+    ├── main.py
+    ├── dashboard.html
+    └── Dockerfile
+```
+
+---
+
+## API эндпоинты
+
+### Backend (http://localhost:8080)
+| Метод | Путь | Назначение |
+|---|---|---|
+| GET | `/` | Дашборд диспетчера |
+| GET | `/api/routes` | Список маршрутов |
+| POST | `/api/forecast` | Прогноз (проксирование в ML) |
+| POST | `/api/export/csv` | Выгрузка в CSV |
+| POST | `/api/export/xlsx` | Выгрузка в XLSX |
+| GET | `/health` | Healthcheck |
+
+### ML-Service (http://localhost:8000)
+| Метод | Путь | Назначение |
+|---|---|---|
+| GET | `/health` | Healthcheck (status, model_loaded) |
+| GET | `/debug` | Диагностика (19 фич, raw_prediction, bias_applied) |
+| POST | `/api/forecast` | Прямой инференс модели |
+
+---
+
+## Функциональность дашборда
+
+- Выбор маршрута (1, 5, 7, 11, 12, 17, 25, 26, 28, 50)
+- Выбор периода (`date_from`–`date_to`) и часового интервала (`hour_from`–`hour_to`)
+- Три корректирующих коэффициента: `weather_coef`, `event_coef`, `season_coef`
+- Интерактивная карта Москвы (Leaflet + OpenStreetMap) с маркерами остановок
+- Динамический график прогноза пассажиропотока по часам
+- Кнопки экспорта: «Экспорт CSV», «Экспорт XLSX»
+
+---
+
+## Инструкция по локальному запуску ML без Docker (опционально)
 
 ### Установка зависимостей:
 ```bash
@@ -208,8 +277,9 @@ pip install fastapi uvicorn lightgbm==3.3.5 numpy==1.26.4 holidays pydantic requ
 uvicorn ml_service:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### Пример запроса
+### Пример запроса:
 ```bash
 curl -X POST http://localhost:8000/api/forecast \
   -H "Content-Type: application/json" \
   -d '{"route":1,"date_from":"2025-11-01","date_to":"2025-11-01","hour_from":0,"hour_to":23,"weather_coef":1.0,"event_coef":1.0,"season_coef":1.0}'
+```
