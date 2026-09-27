@@ -1,0 +1,8 @@
+fastapi==0.109.0
+uvicorn==0.27.0
+lightgbm==3.3.5
+numpy==1.26.4
+pandas==2.0.3
+holidays==0.40
+pydantic==2.5.3
+requests==2.31.0
