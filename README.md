@@ -1,4 +1,4 @@
-**Репозиторий:** (https://github.com/Grisha1v9/mos_transp)  
+**Репозиторий:** [github.com/Grisha1v9/mos_transp](https://github.com/Grisha1v9/mos_transp)
 
 # Интеллектуальная система прогнозирования пассажиропотока трамвайной сети г. Москвы
 
