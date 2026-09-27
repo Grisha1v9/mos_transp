@@ -187,11 +187,14 @@
 ## Артефакты
 | Что | Где |
 |---|---|
-| Код обучения модели | [`main_transp.ipynb`](./main_transp.ipynb) |
-| Веса модели | [`artifacts/`](./artifacts/) |
-| Инференс ML-сервиса | [`ml_service.py`](./ml_service.py) |
-| Docker-сборка | [`Dockerfile.ml`](./Dockerfile.ml) |
-| Зависимости | [`requirements.txt`](./requirements.txt) |
+| Код обучения модели | [`ml/main_transp.ipynb`](./ml/main_transp.ipynb) |
+| Веса модели | [`ml/artifacts/`](./ml/artifacts/) |
+| Инференс ML-сервиса | [`ml/ml_service.py`](./ml/ml_service.py) |
+| Docker ML | [`ml/Dockerfile`](./ml/Dockerfile) |
+| Backend API Gateway | [`backend/main.py`](./backend/main.py) |
+| Дашборд диспетчера | [`backend/dashboard.html`](./backend/dashboard.html) |
+| Docker backend | [`backend/Dockerfile`](./backend/Dockerfile) |
+| Общий запуск стека | [`docker-compose.yml`](./docker-compose.yml) |
 
 ## Инструкция по локальному развертыванию ML-модуля
 
